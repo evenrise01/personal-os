@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// PersonalOS + ClientOS — Full Production Schema
+// Stack: Prisma + NeonDB (Serverless PostgreSQL)
 
 generator client {
   provider = "prisma-client-js"
@@ -7,15 +7,684 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
 
-  @@index([name])
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum TaskCategory {
+  REVENUE
+  HEALTH
+  GROWTH
+  SOCIAL
+  ADMIN
+  PERSONAL
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum GoalTimeframe {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  LIFETIME
+}
+
+enum EnergyLevel {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum ContentStatus {
+  IDEA
+  DRAFTING
+  READY
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContentPlatform {
+  TWITTER
+  LINKEDIN
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+  BLOG
+  NEWSLETTER
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum ProjectStatus {
+  LEAD
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliverableStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  APPROVED
+  DELIVERED
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  PAYPAL
+  STRIPE
+  CASH
+  CRYPTO
+  OTHER
+}
+
+enum ClientHealth {
+  EXCELLENT
+  GOOD
+  AT_RISK
+  CHURNED
+}
+
+// ─────────────────────────────────────────────
+// CORE / AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id        String    @id @default(cuid())
+  clerkId   String    @unique
+  email     String    @unique
+  name      String?
+  avatarUrl String?
+  timezone  String    @default("UTC")
+  onboarded Boolean   @default(false)
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  memberships    WorkspaceMember[]
+  goals          Goal[]
+  habits         Habit[]
+  tasks          Task[]
+  dailyLogs      DailyLog[]
+  fitnessLogs    FitnessLog[]
+  contentIdeas   ContentIdea[]
+  contentPosts   ContentPost[]
+  skillSessions  SkillSession[]
+  knowledgeNotes KnowledgeNote[]
+
+  @@index([clerkId])
+  @@index([email])
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  logoUrl   String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  workspaces Workspace[]
+
+  @@index([slug])
+}
+
+model Workspace {
+  id             String    @id @default(cuid())
+  name           String
+  slug           String
+  organizationId String
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  // Relations
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      WorkspaceMember[]
+  clients      Client[]
+  projects     Project[]
+  invoices     Invoice[]
+  proposals    Proposal[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role     @default(MEMBER)
+  joinedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — GOALS & HABITS
+// ─────────────────────────────────────────────
+
+model Goal {
+  id           String        @id @default(cuid())
+  userId       String
+  title        String
+  description  String?
+  status       GoalStatus    @default(ACTIVE)
+  timeframe    GoalTimeframe @default(QUARTERLY)
+  category     TaskCategory  @default(GROWTH)
+  targetDate   DateTime?
+  targetValue  Float?
+  currentValue Float?        @default(0)
+  unit         String?
+  parentId     String?
+  metadata     Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Goal?   @relation("GoalHierarchy", fields: [parentId], references: [id])
+  children Goal[]  @relation("GoalHierarchy")
+  habits   Habit[]
+  tasks    Task[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([userId, status])
+}
+
+model Habit {
+  id            String       @id @default(cuid())
+  userId        String
+  goalId        String?
+  name          String
+  description   String?
+  category      TaskCategory @default(GROWTH)
+  frequency     String       @default("daily") // daily, weekly, etc.
+  targetCount   Int          @default(1)
+  currentStreak Int          @default(0)
+  longestStreak Int          @default(0)
+  isActive      Boolean      @default(true)
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal Goal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, isActive])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — DAILY EXECUTION
+// ─────────────────────────────────────────────
+
+model Task {
+  id            String       @id @default(cuid())
+  userId        String
+  goalId        String?
+  title         String
+  description   String?
+  status        TaskStatus   @default(TODO)
+  priority      TaskPriority @default(MEDIUM)
+  category      TaskCategory @default(PERSONAL)
+  estimatedMins Int?
+  actualMins    Int?
+  isDeepWork    Boolean      @default(false)
+  scheduledDate DateTime?
+  completedAt   DateTime?
+  dueDate       DateTime?
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal        Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  deliverable Deliverable? @relation
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, scheduledDate])
+  @@index([userId, category])
+}
+
+model DailyLog {
+  id             String       @id @default(cuid())
+  userId         String
+  date           DateTime     @db.Date
+  morningEnergy  EnergyLevel?
+  eveningEnergy  EnergyLevel?
+  deepWorkMins   Int          @default(0)
+  tasksCompleted Int          @default(0)
+  tasksPlanned   Int          @default(0)
+  topWin         String?
+  topChallenge   String?
+  reflection     String?
+  gratitude      String?
+  score          Float? // 0-100 daily performance score
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — FITNESS
+// ─────────────────────────────────────────────
+
+model FitnessLog {
+  id           String       @id @default(cuid())
+  userId       String
+  date         DateTime     @db.Date
+  workoutType  String? // e.g. "Push", "Pull", "Legs", "Cardio"
+  durationMins Int?
+  exercises    Json? // Array of { name, sets, reps, weight }
+  notes        String?
+  energyBefore EnergyLevel?
+  energyAfter  EnergyLevel?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — CONTENT ENGINE
+// ─────────────────────────────────────────────
+
+model ContentIdea {
+  id          String          @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  platform    ContentPlatform @default(TWITTER)
+  status      ContentStatus   @default(IDEA)
+  tags        String[]
+  hook        String?
+  angle       String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts ContentPost[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, platform])
+}
+
+model ContentPost {
+  id          String          @id @default(cuid())
+  userId      String
+  ideaId      String?
+  platform    ContentPlatform
+  title       String?
+  body        String?
+  mediaUrls   String[]
+  status      ContentStatus   @default(DRAFTING)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  impressions Int?
+  engagement  Float?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idea ContentIdea? @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, publishedAt])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — SKILL GROWTH
+// ─────────────────────────────────────────────
+
+model SkillSession {
+  id           String       @id @default(cuid())
+  userId       String
+  skillName    String
+  category     TaskCategory @default(GROWTH)
+  durationMins Int
+  notes        String?
+  rating       Int? // 1-5 session quality
+  date         DateTime     @db.Date
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, skillName])
+  @@index([userId, date])
+}
+
+// ─────────────────────────────────────────────
+// LIFEOS — KNOWLEDGE VAULT
+// ─────────────────────────────────────────────
+
+model KnowledgeNote {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  source    String? // book, article, podcast, etc.
+  sourceUrl String?
+  tags      String[]
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// CLIENTOS — CRM
+// ─────────────────────────────────────────────
+
+model Client {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  website     String?
+  health      ClientHealth @default(GOOD)
+  notes       String?
+  avatarUrl   String?
+  tags        String[]
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts       Contact[]
+  projects       Project[]
+  invoices       Invoice[]
+  proposals      Proposal[]
+  communications CommunicationLog[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, health])
+}
+
+model Contact {
+  id        String    @id @default(cuid())
+  clientId  String
+  name      String
+  email     String?
+  phone     String?
+  role      String? // e.g. "CEO", "CTO", "Project Manager"
+  isPrimary Boolean   @default(false)
+  notes     String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+// ─────────────────────────────────────────────
+// CLIENTOS — PROJECTS & DELIVERABLES
+// ─────────────────────────────────────────────
+
+model Project {
+  id                  String        @id @default(cuid())
+  workspaceId         String
+  clientId            String
+  name                String
+  description         String?
+  status              ProjectStatus @default(LEAD)
+  budgetCents         Int? // Store in cents for precision
+  currency            String        @default("USD")
+  startDate           DateTime?
+  endDate             DateTime?
+  isRetainer          Boolean       @default(false)
+  retainerAmountCents Int?
+  metadata            Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deliverables Deliverable[]
+  invoices     Invoice[]
+
+  @@index([workspaceId])
+  @@index([clientId])
+  @@index([workspaceId, status])
+}
+
+model Deliverable {
+  id          String            @id @default(cuid())
+  projectId   String
+  taskId      String?           @unique
+  title       String
+  description String?
+  status      DeliverableStatus @default(NOT_STARTED)
+  dueDate     DateTime?
+  completedAt DateTime?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([projectId, status])
+}
+
+// ─────────────────────────────────────────────
+// CLIENTOS — INVOICES & PAYMENTS
+// ─────────────────────────────────────────────
+
+model Invoice {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  clientId      String
+  projectId     String?
+  invoiceNumber String
+  status        InvoiceStatus @default(DRAFT)
+  amountCents   Int // Store in cents
+  taxCents      Int           @default(0)
+  currency      String        @default("USD")
+  description   String?
+  lineItems     Json? // Array of { description, quantity, unitPriceCents }
+  issuedAt      DateTime?
+  dueDate       DateTime?
+  paidAt        DateTime?
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  payments  Payment[]
+
+  @@unique([workspaceId, invoiceNumber])
+  @@index([workspaceId])
+  @@index([clientId])
+  @@index([workspaceId, status])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  invoiceId   String
+  amountCents Int
+  currency    String        @default("USD")
+  method      PaymentMethod @default(BANK_TRANSFER)
+  reference   String? // transaction ID, check number, etc.
+  paidAt      DateTime      @default(now())
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────
+// CLIENTOS — PROPOSALS & COMMUNICATION
+// ─────────────────────────────────────────────
+
+model Proposal {
+  id          String         @id @default(cuid())
+  workspaceId String
+  clientId    String
+  title       String
+  content     String?
+  amountCents Int?
+  currency    String         @default("USD")
+  status      ProposalStatus @default(DRAFT)
+  sentAt      DateTime?
+  expiresAt   DateTime?
+  acceptedAt  DateTime?
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([clientId])
+  @@index([workspaceId, status])
+}
+
+model CommunicationLog {
+  id         String   @id @default(cuid())
+  clientId   String
+  channel    String // email, call, meeting, slack, etc.
+  subject    String?
+  summary    String?
+  direction  String   @default("outbound") // inbound or outbound
+  occurredAt DateTime @default(now())
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([clientId, occurredAt])
 }

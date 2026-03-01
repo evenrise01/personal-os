@@ -1,23 +1,22 @@
-import { postRouter } from "@/server/api/routers/post";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 /**
- * This is the primary router for your server.
+ * Primary tRPC router for PersonalOS.
  *
- * All routers added in /api/routers should be manually added here.
+ * All domain routers are registered here.
+ * Add new routers as features are built.
  */
 export const appRouter = createTRPCRouter({
-  post: postRouter,
+  // LifeOS routers will go here:
+  // task: taskRouter,
+  // dailyLog: dailyLogRouter,
+  // goal: goalRouter,
+  // ClientOS routers will go here:
+  // client: clientRouter,
+  // project: projectRouter,
+  // invoice: invoiceRouter,
 });
 
-// export type definition of API
 export type AppRouter = typeof appRouter;
 
-/**
- * Create a server-side caller for the tRPC API.
- * @example
- * const trpc = createCaller(createContext);
- * const res = await trpc.post.all();
- *       ^? Post[]
- */
 export const createCaller = createCallerFactory(appRouter);
