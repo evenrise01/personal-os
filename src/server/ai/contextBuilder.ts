@@ -27,7 +27,7 @@ export interface DailyContext {
     topWin: string | null;
     topChallenge: string | null;
   } | null;
-  habits: { name: string; category: string; streak: number }[];
+  habits: { name: string; category: string; currentStreak: number }[];
 }
 
 export interface WeeklyContext {
@@ -104,7 +104,7 @@ export async function buildDailyContext(
     }),
     db.habit.findMany({
       where: { userId, isActive: true, deletedAt: null },
-      select: { name: true, category: true, streak: true },
+      select: { name: true, category: true, currentStreak: true },
     }),
   ]);
 
