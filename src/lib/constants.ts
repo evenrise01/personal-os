@@ -9,6 +9,7 @@ import {
   Zap,
   Brain,
   Target,
+  Dumbbell,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,8 +31,9 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Daily", href: "/daily", icon: CalendarDays },
       { label: "Goals", href: "/goals", icon: Target },
+      { label: "Fitness", href: "/fitness", icon: Dumbbell },
+      { label: "Content", href: "/knowledge", icon: Brain },
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
-      { label: "Knowledge", href: "/knowledge", icon: Brain },
     ],
   },
   {

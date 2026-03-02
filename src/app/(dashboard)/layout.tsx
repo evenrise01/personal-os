@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { useSyncUser } from "@/hooks/useSyncUser";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  // Sync Clerk user to DB on first load
+  useSyncUser();
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
